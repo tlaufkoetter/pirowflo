@@ -16,13 +16,6 @@ from luma.core.interface.serial import spi
 import subprocess
 import time
 
-def getipaddress():
-    ipaddr = subprocess.run('ifconfig wlan0 | grep "inet 192" | cut -c 14-25',shell=True,capture_output=True)
-    ipadd= str(ipaddr.stdout)
-    ipadd = ipadd[2:-3].strip()
-    print(ipadd)
-    globalParameters.ipaddr = ipadd
-
 
 # Setup OLED display
 print("Connect to display")
@@ -95,7 +88,7 @@ def button_stop_callback(channel):
 def button_resetpi_callback(channel):
     Lockbutton.acquire()
     globalParameters.lastbuttonpressed = time.time()
-    subprocess.run(["sudo","reboot"])
+    subprocess.run(['sudo','shutdown', '-h', 'now'])
     Lockbutton.release()
 
 def shutdown():
@@ -151,7 +144,6 @@ GPIO.add_event_detect(joystickDown, GPIO.RISING, callback=menudown, bouncetime=3
 GPIO.add_event_detect(joystickLeft, GPIO.RISING, callback=menuback, bouncetime=300)
 GPIO.add_event_detect(joystickright, GPIO.RISING, callback=menuforward, bouncetime=300)
 GPIO.add_event_detect(joystickbutton, GPIO.RISING, callback=JoyButtonmenuaction, bouncetime=300)
-getipaddress()
 
 print("Setup finished")
 print()

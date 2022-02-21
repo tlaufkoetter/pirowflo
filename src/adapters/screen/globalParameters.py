@@ -1,8 +1,7 @@
 import configparser
 import pathlib
 import time
-
-
+import subprocess
 
 class globalParameterBuilder():
     def __init__(self):
@@ -26,7 +25,7 @@ class globalParameterBuilder():
 
         #get ipaddress
 
-        self.ipaddr =None
+        self.ipaddr = ''
 
         #Set fonts
         print("Loading font configuration")
@@ -74,5 +73,9 @@ class globalParameterBuilder():
         elif  self.S4MonitorOn == 1 and self.BluetoothOn == 0 and self.AntplusOn == 1:
             self.pirowflocmd = ["supervisorctl", "start", "pirowflo_S4_Monitor_AntPlus_only"]
 
+    def setipaddress(self):
+        cmd = "hostname -I | cut -d\' \' -f1"
+        ipaddr = subprocess.check_output(cmd, shell = True)
+        self.ipaddr = ipaddr.decode('UTF-8')
 
 globalParameters = globalParameterBuilder()
