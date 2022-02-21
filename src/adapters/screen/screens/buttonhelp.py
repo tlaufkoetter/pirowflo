@@ -32,7 +32,7 @@ def draw(device):
             #draw.text((110, 24), text="==>", font=font, fill="white")  # back
             draw.text((110, 20), text="\uf0a9", font=fontawesome, fill="white")
             #draw.text((5, 36), text=" ", font=font, fill="white")  # playlists
-            draw.text((5, 48), text="Restart Pi", font=font, fill="white")  # playlists
+            draw.text((5, 48), text="Shutdown Pi", font=font, fill="white")  # playlists
             #draw.text((110, 48), text="==>", font=font, fill="white")  # back
             draw.text((110, 44), text="\uf0a9", font=fontawesome, fill="white")
             #draw.text((5, 30), text="this is ", font=font, fill="white")  # shutdown
