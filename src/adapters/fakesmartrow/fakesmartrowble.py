@@ -247,9 +247,8 @@ def ManageConnection(value):
 
     if(AppConnectState == AppConnectStateEnum.Connected):
         if 'V@' in value:
-            ble_command_q.clear()
             ble_command_q.append('V@')
-            ble_command_q.append("SmartRow 'V3.00'")
+            ble_command_q.append("\rSmartRow 'V3.00'\r")
             PendingReset = True
             logger.info("Sending SmartRow version")
             return
