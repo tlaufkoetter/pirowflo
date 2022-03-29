@@ -1,7 +1,7 @@
 import gatt
 import logging
 import threading
-from time import time
+from time import sleep
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,7 @@ def connecttosmartrow():
 
 if __name__ == '__main__':
 
-    manager = gatt.DeviceManager(adapter_name='hci1')
+    manager = gatt.DeviceManager(adapter_name='hci0')
     device = SmartRow(mac_address="", manager=manager)
     device.connect()
 

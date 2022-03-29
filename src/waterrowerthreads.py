@@ -32,6 +32,8 @@ from adapters.ble import waterrowerble
 from adapters.s4 import wrtobleant
 from adapters.ant import waterrowerant
 from adapters.smartrow import smartrowtobleant
+from adapters.fakesmartrow import fakesmartrowble
+
 import pathlib
 import signal
 
@@ -39,7 +41,6 @@ loggerconfigpath = str(pathlib.Path(__file__).parent.absolute()) +'/' +'logging.
 
 logger = logging.getLogger(__name__)
 Mainlock = threading.Lock()
-
 
 class Graceful:
 
@@ -69,10 +70,15 @@ def main(args=None):
         Waterrowerserial = wrtobleant.main(in_q, ble_out_q, ant_out_q)
         Waterrowerserial()
 
-    def Smartrow(in_q, ble_out_q, ant_out_q):
+    def Smartrow(in_q, ble_out_q, ant_out_q, pass_thru_q, fake_sr_event):
         logger.info("Smartrow Interface started")
-        Smartrowconnection = smartrowtobleant.main(in_q, ble_out_q, ant_out_q)
+        Smartrowconnection = smartrowtobleant.main(in_q, ble_out_q, ant_out_q, pass_thru_q, fake_sr_event)
         Smartrowconnection()
+
+    def SmartRowPassthrough(in_q, pass_thru_q, fake_sr_event):
+        logger.info("Start SmartRow Passthrough BLE Advertise and BLE GATT Server")
+        FakeSmartRowBLE = fakesmartrowble.main(in_q, pass_thru_q, fake_sr_event)
+        FakeSmartRowBLE()
 
     def ANTService(ant_in_q):
         logger.info("Start Ant and start broadcast data")
@@ -84,7 +90,18 @@ def main(args=None):
     q = Queue()
     ble_q = deque(maxlen=1)
     ant_q = deque(maxlen=1)
+    passthru_q = None
+    fake_sr_event = None
     threads = []
+    passthru = False
+
+    # Turn on SmartRow passthrough if the interface is
+    #  SmartRow and BLE-FE is not selected
+    if args.interface == 'sr' and args.blue == False:
+        fake_sr_event = threading.Event()
+        passthru_q = deque(maxlen=1)
+        passthru = True
+
     if args.interface == "s4":
         logger.info("inferface S4 monitor will be used for data input")
         t = threading.Thread(target=Waterrower, args=(q, ble_q, ant_q))
@@ -94,14 +111,23 @@ def main(args=None):
     else:
         logger.info("S4 not selected")
 
-    if args.interface == "sr":
-        logger.info("inferface smartrow will be used for data input")
-        t = threading.Thread(target=Smartrow, args=(q, ble_q, ant_q))
+    if args.interface == "sr":    
+        logger.info("interface smartrow will be used for data input")
+        t = threading.Thread(target=Smartrow, args=(q, ble_q, ant_q, passthru_q, fake_sr_event))
         t.daemon = True
         t.start()
         threads.append(t)
     else:
-        logger.info("sr not selected")
+        logger.info("SmartRow interface not selected")
+
+    if passthru == True:
+        logger.info("SmartRow passthrough is enabled")
+        t = threading.Thread(target=SmartRowPassthrough, args=(q, passthru_q, fake_sr_event), name='srpt')
+        t.daemon = True
+        t.start()
+        threads.append(t)
+    else:
+        logger.info("SmartRow passthrough is disabled")
 
     if args.blue == True:
         t = threading.Thread(target=BleService, args=(q, ble_q))
@@ -110,6 +136,7 @@ def main(args=None):
         threads.append(t)
     else:
         logger.info("Bluetooth service not used")
+
     if args.antfe == True:
         t = threading.Thread(target=ANTService, args=(
         [ant_q]))  # [] are needed to tell threading that the list "deque" is one args and not a list of arguement !
@@ -123,7 +150,7 @@ def main(args=None):
         for thread in threads:
             if grace.run == True:
                 thread.join(timeout=10)
-                if not thread.is_alive():
+                if not (thread.is_alive() or thread.getName() == 'srpt'):
                     logger.info("Thread died - exiting")
                     return
 
