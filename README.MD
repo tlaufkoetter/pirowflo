@@ -1,7 +1,7 @@
 # PiRowFlo for Waterrower
 
 
-19.02.2022: SmartRow with version 3.00 has been seen in the wild. This smartrow version is NOT working with PiRowFlo! SmartRow has introduced a new checksum methode to lockout third parties. That means the Pi can't talk to the SmartRow! New protocol fully understood. Implementation needed! :)
+03.03.2022: SmartRow version 3.0 is now working. Thanks to Dan !!
 14.11.2021: fixed pip install issue with pyusb in requirements.txt
 
 <img src="docs/logo/PIROWFLO2.png" width=36% height=36%>
@@ -26,14 +26,14 @@ Read the LICENCE first, by using this software you agree to the licence.
 |        | Kinomap (BLE) | Cityrowgo (BLE)      | waterrower connect (BLE)   | Coxswain (BLE) 7.9 or higher | Holofit| 
 |:------:|:------:       |:------------:      |:-----:                     |:-------:                     |:-------:     
 |Android | test pending  | :heavy_check_mark: | devs need to update app                  | :heavy_check_mark:           |  :heavy_check_mark:           |
-|iOS     | test pending  | :heavy_check_mark: | :heavy_check_mark:         |  -                           | :heavy_check_mark:           |
+|iOS     | :heavy_check_mark:  | :heavy_check_mark: | :heavy_check_mark:         |  -                           | :heavy_check_mark:           |
 
 ## Supported Apps SmartRow (23.02.2021)
 
 |        | Kinomap (BLE) | Cityrowgo (BLE)      | waterrower connect (BLE)   | Coxswain (BLE) 7.9 or higher |Holofit | 
 |:------:|:------:       |:------------:      |:-----:                     |:-------:                     |:-------:  |
 |Android | test pending  | test pending | devs need to update app                   | :heavy_check_mark:           |  :heavy_check_mark:           |
-|iOS     | test pending  | :heavy_check_mark:   | :heavy_check_mark:         |  -                           | :heavy_check_mark:           |
+|iOS     | :heavy_check_mark: | :heavy_check_mark:   | :heavy_check_mark:         |  -                           | :heavy_check_mark:           |
 
 
 ## Supported Watches (14.01.2021)
