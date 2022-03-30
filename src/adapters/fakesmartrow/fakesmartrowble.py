@@ -247,8 +247,8 @@ def ManageConnection(value):
 
     if(AppConnectState == AppConnectStateEnum.Connected):
         if 'V@' in value:
-            ble_command_q.append('V@')
-            ble_command_q.append("\rSmartRow 'V3.00'\r")
+            ble_command_q.append('\rV@\r')
+            ble_command_q.append("\rV@\rSmartRow 'V3.00'\r")
             PendingReset = True
             logger.info("Sending SmartRow version")
             return
@@ -269,7 +269,8 @@ def ManageConnection(value):
         AppKeylockReceiveCount = AppKeylockReceiveCount + 1
         logger.info('Connect state=3: Receive count='+str(AppKeylockReceiveCount))
         if (AppKeylockReceiveCount == 1):
-            ble_command_q.append('\r'+chr(0xe1)+chr(0xe3)+chr(0xa5)+chr(0xe1)+chr(0x32)+chr(0x78)+chr(0xf6)+chr(0x8e))
+            #ble_command_q.append('\r'+chr(0xe1)+chr(0xe3)+chr(0xa5)+chr(0xe1)+chr(0x32)+chr(0x78)+chr(0xf6)+chr(0x8e))
+            pass
 
         elif (AppKeylockReceiveCount < 6):
             ble_command_q.append(str(value))
