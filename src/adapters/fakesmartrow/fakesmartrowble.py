@@ -6,8 +6,12 @@
 # ---------------------------------------------------------------------------
 #
 import logging
+from operator import truediv
 import signal
 import threading
+import random
+import time
+import datetime
 import dbus
 import dbus.exceptions
 import dbus.mainloop.glib
@@ -58,6 +62,8 @@ AppConnectState = None
 AppKeylockReceiveCount = 0
 ble_command_q = None
 DistanceOffset = 0
+CurrentDistance = 0
+StartTime = None
 PendingReset = False
 
 class AppConnectStateEnum(Enum):
@@ -119,11 +125,7 @@ class WriteToSmartRow(Characteristic):
         self.value = 0
 
     def WriteValue(self, value, options):
-        global AppConnectState
-        global AppKeylockReceiveCount
-
         self.value = value
-        #logger.info(self.value)
         sval = ''.join([str(v) for v in value])
         print('WriteValue(1235): ' + sval)
         ManageConnection(sval)
@@ -147,6 +149,7 @@ class SmartRowData(Characteristic):
         global AppConnectState
         global PendingReset
         global ble_command_q
+        global ble_in_q_value
 
         smartRowFakeData = None
         value = dbus.Byte(0)
@@ -158,30 +161,35 @@ class SmartRowData(Characteristic):
 
             elif ble_in_q_value:
                 try:
-                    # print('inp='+str(smartRowFakeData))
                     smartRowFakeData = ble_in_q_value.popleft()
-                    if (not 'V3.00' in smartRowFakeData and not 'V@' in smartRowFakeData):                   
+                    if (not 'V3.00' in smartRowFakeData and not 'V@' in smartRowFakeData):
                         distance = GetDistance(smartRowFakeData)
                         smartRowFakeData = smartRowFakeData[0] + distance + smartRowFakeData[6:14]
-                        # print('dst='+str(smartRowFakeData))
+
+                        if (smartRowFakeData[0] == 'a'):
+                            smartRowFakeData = AddTime(smartRowFakeData)
+
                         cksum  =f'{(sum(ord(ch) for ch in smartRowFakeData)):0>4X}'
                         smartRowFakeData = smartRowFakeData + cksum[-2:] + '\r'
-                        # print('out='+smartRowFakeData)
+
+                        if PendingReset:
+                            smartRowFakeData = smartRowFakeData + '\rV@\r'
+                            PendingReset = False
                 except:
+                    logger.warn('Exception when processing ble_in_q_value')
                     smartRowFakeData = None
 
         elif (AppConnectState == AppConnectState.WaitKeylockResponse and len(ble_command_q) > 0):
             smartRowFakeData = ble_command_q.popleft()
 
         elif (AppConnectState == AppConnectState.ReceivedKeylockResponse):
-            smartRowFakeData = ['\r']
+            smartRowFakeData = '\r'
             AppConnectState = AppConnectStateEnum.Connected
             logger.info("Connect state=4: Connected")
 
         if (smartRowFakeData is not None): 
-            # print('data='+str(smartRowFakeData))
             value = [dbus.Byte(ord(b)) for b in smartRowFakeData]
-            # print('Sending: '+str(value))
+            #logger.info('Sending: '+str(smartRowFakeData).replace('\r', '\\r'))
             self.PropertiesChanged(GATT_CHRC_IFACE, { 'Value': value }, [])
             
         else:
@@ -218,7 +226,7 @@ class SmartRowData(Characteristic):
 
         logger.info('Ending notification')
         self.notifying = False
-        self._update_Waterrower_cb_value()
+        ResetConnection()
 
     def ReadValue(self, options):
         print('ReadValue(1236): '+str(options))
@@ -239,19 +247,45 @@ class SmartRowAdvertisement(Advertisement):
         self.add_local_name("SmartRow")
         self.include_tx_power = True
 
+# Start over with connecting to app
+def ResetConnection():
+    global AppConnectState
+    global AppKeylockReceiveCount
+    global DistanceOffset
+    global ble_command_q
+    global PendingReset
+    global CurrentDistance
+    global StartTime
+
+    logger.info('Resetting app connection')
+    AppConnectState = AppConnectStateEnum.Start
+    AppKeylockReceiveCount = 0
+    DistanceOffset = CurrentDistance
+    PendingReset = 0
+    StartTime = time.time()
+    ble_command_q.clear()
+
 def ManageConnection(value):
     global AppConnectState
     global AppKeylockReceiveCount
     global ble_command_q
     global PendingReset
+    global DistanceOffset
+    global CurrentDistance
+    global StartTime
 
     if(AppConnectState == AppConnectStateEnum.Connected):
+        #logger.info('App connected and received ' + str(value))
         if 'V@' in value:
-            ble_command_q.append('\rV@\r')
-            ble_command_q.append("\rV@\rSmartRow 'V3.00'\r")
+            # Handle reset
+            logger.info('Resetting time and distance')
             PendingReset = True
-            logger.info("Sending SmartRow version")
+            DistanceOffset = CurrentDistance
+            StartTime = time.time()
             return
+
+    else:
+        logger.info('App not connected and received ' + str(value))
 
     if (AppConnectState == AppConnectStateEnum.Start and value[0] == '$'):
         logger.info('Connect state=1')
@@ -263,13 +297,12 @@ def ManageConnection(value):
         AppConnectState = AppConnectStateEnum.WaitKeylockResponse
         AppKeylockReceiveCount = 0
         ble_command_q.clear()
-        ble_command_q.append("\rKEYLOCK=D2B34CB1\r")
+        ble_command_q.append(MakeKeylockChallenge())
 
     elif (AppConnectState == AppConnectStateEnum.WaitKeylockResponse):
         AppKeylockReceiveCount = AppKeylockReceiveCount + 1
         logger.info('Connect state=3: Receive count='+str(AppKeylockReceiveCount))
         if (AppKeylockReceiveCount == 1):
-            #ble_command_q.append('\r'+chr(0xe1)+chr(0xe3)+chr(0xa5)+chr(0xe1)+chr(0x32)+chr(0x78)+chr(0xf6)+chr(0x8e))
             pass
 
         elif (AppKeylockReceiveCount < 6):
@@ -293,28 +326,42 @@ def DecryptDistance(data):
 
 def GetDistance(data):
     global DistanceOffset
-    global PendingReset
+    global CurrentDistance
 
     d = int(DecryptDistance(data))
-    #vprint('In distance='+str(d))
-    
-    if (PendingReset == True):
-        DistanceOffset = d
-        PendingReset = False
+
+    # Store incoming distance
+    CurrentDistance = d
 
     d = d - DistanceOffset
     if (d < 0):
         d = 0
 
     strDist = f'{d:05}'
-    # print('Out distance='+strDist)
     s = ''
     for c in strDist[0:5]:
             s += chr(int(ord(c) + 0x10))
 
-    # print('Encoded='+s)
     return s
 
+def AddTime(data):
+    global StartTime
+    elapsed = 0
+
+    if (StartTime is not None):
+        elapsed = int(time.time() - StartTime)
+
+    elapsedStr = str(datetime.timedelta(seconds=elapsed)).replace(':', '')
+    return data[:6] + elapsedStr + data[11:]
+
+def MakeKeylockChallenge():
+    rnd = random.randint(8388608, 16777215)
+    result='KEYLOCK=' + f'{rnd:0>6X}'
+    cksum = f'{(sum(ord(ch) for ch in result)):0>4X}'
+    result = result + cksum[-2:]
+    logger.info('Generated ' + str(result))
+    result = '\r' + result +'\r'
+    return result
 
 def register_ad_cb():
     logger.info("Advertisement registered")
