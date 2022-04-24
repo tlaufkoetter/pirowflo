@@ -263,8 +263,14 @@ def main(in_q, ble_out_q, ant_out_q, passtrhu_q = None, fake_sr_event = None):
     global sr_passthrough_q
     sr_passthrough_q = passtrhu_q
 
-    macaddresssmartrower = smartrowreader.connecttosmartrow()
-    manager = gatt.DeviceManager(adapter_name='hci0')
+    macaddresssmartrower = smartrowreader.connecttosmartrow(fake_sr_event is not None)
+
+    # If we use the fake smartrow passthrough, then make sure we get the correct Bluetooth device
+    if fake_sr_event is None:
+        manager = gatt.DeviceManager(adapter_name='hci0')
+    else:
+        manager = gatt.DeviceManager(adapter_name=smartrowreader.get_sr_preferred_adapter())
+
     smartrow = smartrowreader.SmartRow(mac_address=macaddresssmartrower, manager=manager)
     SRtoBLEANT = DataLogger(smartrow)
 

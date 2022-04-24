@@ -1,7 +1,7 @@
 import dbus
-
+import subprocess
 import logging
-#import sys
+
 
 DBUS_OM_IFACE = "org.freedesktop.DBus.ObjectManager"
 DBUS_PROP_IFACE = "org.freedesktop.DBus.Properties"
@@ -42,17 +42,34 @@ def find_adapter(bus):
     """
     Returns the first object that the bluez service has that has a GattManager1 interface
     """
+
+    adapt = get_sr_preferred_adapter()
+    if adapt is None:
+        return None
+
     remote_om = dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, "/"), DBUS_OM_IFACE)
     objects = remote_om.GetManagedObjects()
 
     for o, props in objects.items():
-        # Force fake rower to use hci1
-        if GATT_MANAGER_IFACE in props.keys() and 'hci1' in o:
-            print('---->'+str(o))
+        # Force fake rower to use the external Bluetooth dongle
+        if GATT_MANAGER_IFACE in props.keys() and adapt in o:
             return o
 
     return None
 
+# Find the external Bluetooth adapter.  It has a Bus type of USB.
+def get_sr_preferred_adapter():
+    hci_info = subprocess.run(['hciconfig', 'hci0'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    if 'USB' in hci_info:
+        return 'hci0'
+
+    hci_info = subprocess.run(['hciconfig', 'hci1'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    if 'USB' in hci_info:
+        return 'hci1'
+
+    hci_info = subprocess.run(['hciconfig', 'hci2'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    if 'USB' in hci_info:
+        return 'hci2'   
 
 class Application(dbus.service.Object):
     """

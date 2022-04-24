@@ -63,6 +63,8 @@ AppKeylockReceiveCount = 0
 ble_command_q = None
 DistanceOffset = 0
 CurrentDistance = 0
+StrokeOffset = 0
+CurrentStrokes = 0
 StartTime = None
 PendingReset = False
 
@@ -169,6 +171,9 @@ class SmartRowData(Characteristic):
                         if (smartRowFakeData[0] == 'a'):
                             smartRowFakeData = AddTime(smartRowFakeData)
 
+                        if (smartRowFakeData[0] == 'd'):
+                            smartRowFakeData = AddStrokeCount(smartRowFakeData)
+
                         cksum  =f'{(sum(ord(ch) for ch in smartRowFakeData)):0>4X}'
                         smartRowFakeData = smartRowFakeData + cksum[-2:] + '\r'
 
@@ -252,15 +257,18 @@ def ResetConnection():
     global AppConnectState
     global AppKeylockReceiveCount
     global DistanceOffset
+    global StrokeOffset
     global ble_command_q
     global PendingReset
     global CurrentDistance
+    global CurrentStrokes
     global StartTime
 
     logger.info('Resetting app connection')
     AppConnectState = AppConnectStateEnum.Start
     AppKeylockReceiveCount = 0
     DistanceOffset = CurrentDistance
+    StrokeOffset = CurrentStrokes
     PendingReset = 0
     StartTime = time.time()
     ble_command_q.clear()
@@ -272,15 +280,18 @@ def ManageConnection(value):
     global PendingReset
     global DistanceOffset
     global CurrentDistance
+    global StrokeOffset
+    global CurrentStrokes
     global StartTime
 
     if(AppConnectState == AppConnectStateEnum.Connected):
         #logger.info('App connected and received ' + str(value))
         if 'V@' in value:
             # Handle reset
-            logger.info('Resetting time and distance')
+            logger.info('Resetting time, distance and stroke count')
             PendingReset = True
             DistanceOffset = CurrentDistance
+            StrokeOffset = CurrentStrokes
             StartTime = time.time()
             return
 
@@ -354,6 +365,20 @@ def AddTime(data):
     elapsedStr = str(datetime.timedelta(seconds=elapsed)).replace(':', '')
     return data[:6] + elapsedStr + data[11:]
 
+def AddStrokeCount(data):
+    global CurrentStrokes
+    global StrokeOffset
+
+   # Get and store current stroke count
+    CurrentStrokes = int(data[9:13].replace(' ', '0'))
+    c = CurrentStrokes - StrokeOffset
+    if (c < 0):
+        c = 0
+
+    # Stroke count is space padded
+    strCount = f'{c: 4}'
+    return data[:9] + strCount + data[13:]
+
 def MakeKeylockChallenge():
     rnd = random.randint(8388608, 16777215)
     result='KEYLOCK=' + f'{rnd:0>6X}'
@@ -392,16 +417,17 @@ def main(out_q, ble_in_q, fake_sr_event):
     ble_in_q_value = ble_in_q
     AppConnectState = AppConnectStateEnum.Start
 
-    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-
     logger.info('Waiting for real SmartRow to connect')
     fake_sr_event.wait()
     logger.info('Real SmartRow connected')
+
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
     # get the system bus
     bus = dbus.SystemBus()
     # get the ble controller
     adapter = find_adapter(bus)
+    logger.info('Fake SmartRow using ' + str(adapter))
 
     if not adapter:
         logger.critical("GattManager1 interface not found")

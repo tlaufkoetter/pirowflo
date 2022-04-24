@@ -1,5 +1,6 @@
 import gatt
 import logging
+import subprocess
 import threading
 from time import sleep
 
@@ -111,8 +112,12 @@ class SmartRowManager(gatt.DeviceManager):
                 self.discovered=True
 
 
-def connecttosmartrow():
-    manager = SmartRowManager(adapter_name='hci0')
+def connecttosmartrow(passthru = False):
+    if not passthru:
+        manager = SmartRowManager(adapter_name='hci0')
+    else:
+        manager = SmartRowManager(adapter_name=get_sr_preferred_adapter())
+
     logger.info("starting discovery")
     manager.start_discovery()  # from the DeviceManager class call the methode start_discorvery
     manager.run()
@@ -121,6 +126,23 @@ def connecttosmartrow():
     logger.info("found SmartRow macaddress")
     macaddresssmartrower = manager.smartrowmac    
     return macaddresssmartrower
+
+# Find the built-in Bluetooth adapter.  It has a Bus type of UART.
+def get_sr_preferred_adapter():
+    hci_info = subprocess.run(['hciconfig', 'hci0'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    if 'UART' in hci_info:
+        logger.info('Preferred SmartRow adapter is hci0')
+        return 'hci0'
+
+    hci_info = subprocess.run(['hciconfig', 'hci1'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    if 'UART' in hci_info:
+        logger.info('Preferred SmartRow adapter is hci1')
+        return 'hci1'
+
+    hci_info = subprocess.run(['hciconfig', 'hci2'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    if 'UART' in hci_info:
+        logger.info('Preferred SmartRow adapter is hci2')
+        return 'hci2'   
 
 
 if __name__ == '__main__':
