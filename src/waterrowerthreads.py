@@ -76,9 +76,12 @@ def main(args=None):
         Smartrowconnection()
 
     def SmartRowPassthrough(in_q, pass_thru_q, fake_sr_event):
-        logger.info("Start SmartRow Passthrough BLE Advertise and BLE GATT Server")
-        FakeSmartRowBLE = fakesmartrowble.main(in_q, pass_thru_q, fake_sr_event)
-        FakeSmartRowBLE()
+        try:
+            logger.info("Start SmartRow Passthrough BLE Advertise and BLE GATT Server")
+            FakeSmartRowBLE = fakesmartrowble.main(in_q, pass_thru_q, fake_sr_event)
+            FakeSmartRowBLE()
+        except:
+            logger.error("SmartRow passthrough exited!")
 
     def ANTService(ant_in_q):
         logger.info("Start Ant and start broadcast data")
