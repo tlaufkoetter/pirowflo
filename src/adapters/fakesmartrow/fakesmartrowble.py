@@ -295,6 +295,10 @@ def ManageConnection(value):
             StartTime = time.time()
             return
 
+        if '$' in value and StartTime is None:
+            logger.info('Resetting time')
+            StartTime = time.time()
+
     else:
         logger.info('App not connected and received ' + str(value))
 
@@ -362,7 +366,8 @@ def AddTime(data):
     if (StartTime is not None):
         elapsed = int(time.time() - StartTime)
 
-    elapsedStr = str(datetime.timedelta(seconds=elapsed)).replace(':', '')
+    elapsedStr = f'{elapsed:05}'
+    print('Time: '+elapsedStr)
     return data[:6] + elapsedStr + data[11:]
 
 def AddStrokeCount(data):
