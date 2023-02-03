@@ -129,11 +129,12 @@ class WriteToSmartRow(Characteristic):
     def WriteValue(self, value, options):
         self.value = value
         sval = ''.join([str(v) for v in value])
-        print('WriteValue(1235): ' + sval)
+        #print('WriteValue(1235): ' + sval)
         ManageConnection(sval)
 
     def ReadValue(self, options):
-        print('ReadValue(1235): '+str(options))
+        #print('ReadValue(1235): '+str(options))
+        pass
 
 class SmartRowData(Characteristic):
     SMARTROW_DATA_UUID = '1236'
@@ -152,19 +153,24 @@ class SmartRowData(Characteristic):
         global PendingReset
         global ble_command_q
         global ble_in_q_value
+        global StartTime
 
         smartRowFakeData = None
         value = dbus.Byte(0)
 
         if (AppConnectState == AppConnectStateEnum.Connected):
             if (len(ble_command_q) > 0):
-                print('Command queue length='+str(len(ble_command_q)))
+                #print('Command queue length='+str(len(ble_command_q)))
                 smartRowFakeData = ble_command_q.popleft()
 
             elif ble_in_q_value:
                 try:
                     smartRowFakeData = ble_in_q_value.popleft()
                     if (not 'V3.00' in smartRowFakeData and not 'V@' in smartRowFakeData):
+                        if (StartTime is None and smartRowFakeData[0] == 'f' and smartRowFakeData[11] != '!'):
+                            logger.info('Starting rowing timer!')
+                            StartTime = time.time()
+
                         distance = GetDistance(smartRowFakeData)
                         smartRowFakeData = smartRowFakeData[0] + distance + smartRowFakeData[6:14]
 
@@ -178,7 +184,7 @@ class SmartRowData(Characteristic):
                         smartRowFakeData = smartRowFakeData + cksum[-2:] + '\r'
 
                         if PendingReset:
-                            smartRowFakeData = smartRowFakeData + '\rV@\r'
+                            smartRowFakeData = '\rV@\r' + smartRowFakeData
                             PendingReset = False
                 except:
                     logger.warn('Exception when processing ble_in_q_value')
@@ -204,7 +210,7 @@ class SmartRowData(Characteristic):
         return self.notifying
 
     def _update_Waterrower_cb_value(self):
-        print('Update Smartrow Data ' + self.notifying)
+        #print('Update Smartrow Data ' + self.notifying)
 
         if not self.notifying:
             return
@@ -213,20 +219,20 @@ class SmartRowData(Characteristic):
 
     def StartNotify(self):
         if self.notifying:
-            print('Already notifying, nothing to do')
+            #print('Already notifying, nothing to do')
             return
 
         self.notifying = True
 
         GLib.timeout_add(50, self.Waterrower_cb)
-        print("STARTING NOTIFICATION!")
+        #print("STARTING NOTIFICATION!")
         self.PropertiesChanged(GATT_CHRC_IFACE, { 'Value': [dbus.Byte(13)] }, [])
-        print("DONE 2 STARTING NOTIFICATION!")
+        #print("DONE 2 STARTING NOTIFICATION!")
         logger.info('Starting notification')
 
     def StopNotify(self):
         if not self.notifying:
-            print('Not notifying, nothing to do')
+            #print('Not notifying, nothing to do')
             return
 
         logger.info('Ending notification')
@@ -234,12 +240,13 @@ class SmartRowData(Characteristic):
         ResetConnection()
 
     def ReadValue(self, options):
-        print('ReadValue(1236): '+str(options))
+        #print('ReadValue(1236): '+str(options))
+        pass
 
     def WriteValue(self, value, options):
         self.value = value
         logger.info(self.value)
-        print('WriteValue(1236): '+str(options))
+        #print('WriteValue(1236): '+str(options))
 
 class SmartRowAdvertisement(Advertisement):
     def __init__(self, bus, index):
@@ -269,8 +276,8 @@ def ResetConnection():
     AppKeylockReceiveCount = 0
     DistanceOffset = CurrentDistance
     StrokeOffset = CurrentStrokes
-    PendingReset = 0
-    StartTime = time.time()
+    PendingReset = False
+    StartTime = None
     ble_command_q.clear()
 
 def ManageConnection(value):
@@ -285,23 +292,18 @@ def ManageConnection(value):
     global StartTime
 
     if(AppConnectState == AppConnectStateEnum.Connected):
-        #logger.info('App connected and received ' + str(value))
         if 'V@' in value:
             # Handle reset
-            logger.info('Resetting time, distance and stroke count')
+            logger.info('Resetting time, distance and stroke count on reset')
             PendingReset = True
             DistanceOffset = CurrentDistance
             StrokeOffset = CurrentStrokes
-            StartTime = time.time()
+            StartTime = None  # Wait for rowing to start before starting timer
             return
-
-        if '$' in value and StartTime is None:
-            logger.info('Resetting time')
-            StartTime = time.time()
 
     else:
         logger.info('App not connected and received ' + str(value))
-
+        
     if (AppConnectState == AppConnectStateEnum.Start and value[0] == '$'):
         logger.info('Connect state=1')
         AppConnectState = AppConnectStateEnum.Started
@@ -366,9 +368,9 @@ def AddTime(data):
     if (StartTime is not None):
         elapsed = int(time.time() - StartTime)
 
-    elapsedStr = f'{elapsed:05}'
-    print('Time: '+elapsedStr)
-    return data[:6] + elapsedStr + data[11:]
+    # Time format is hmmss. Null out the milliseconds. 
+    elapsedStr = str(datetime.timedelta(seconds=elapsed)).replace(':', '')
+    return data[:6] + elapsedStr + '   ' + data[14:]
 
 def AddStrokeCount(data):
     global CurrentStrokes
