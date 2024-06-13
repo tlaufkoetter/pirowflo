@@ -112,11 +112,13 @@ sudo chown root:root services/supervisord.conf.orig
 sudo chmod 655 services/supervisord.conf.orig
 sed -i 's@#PYTHON3#@'"$python3_path"'@g' services/supervisord.conf
 sed -i 's@#REPO_DIR#@'"$repo_dir"'@g' services/supervisord.conf
+sed -i 's@#USER#@'"${USER}"'@g' services/supervisord.conf
 #sudo sed -i -e '$i \su '"${USER}"' -c '\''nohup '"${supervisord_path}"' -c '"${repo_dir}"'/supervisord.conf'\''\n' /etc/rc.local
 
 sed -i 's@#REPO_DIR#@'"$repo_dir"'@g' services/supervisord.service
 sed -i 's@#SUPERVISORD_PATH#@'"$supervisord_path"'@g' services/supervisord.service
 sed -i 's@#SUPERVISORCTL_PATH#@'"$supervisorctl_path"'@g' services/supervisord.service
+sed -i 's@#USER#@'"${USER}"'@g' services/supervisord.service
 sudo mv services/supervisord.service /etc/systemd/system/
 sudo chown root:root /etc/systemd/system/supervisord.service
 sudo chmod 655 /etc/systemd/system/supervisord.service
