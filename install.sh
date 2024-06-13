@@ -31,7 +31,7 @@ echo "----------------------------------------------"
 echo "installed needed packages for python          "
 echo "----------------------------------------------"
 
-sudo apt-get install -y python3 python3-gi python3-gi-cairo gir1.2-gtk-3.0 python3-pip libatlas-base-dev libglib2.0-dev libgirepository1.0-dev libcairo2-dev zlib1g-dev libfreetype6-dev liblcms2-dev libopenjp2-7 libtiff5
+sudo apt-get install -y python3 python3-gi python3-gi-cairo gir1.2-gtk-3.0 python3-pip libatlas-base-dev libglib2.0-dev libgirepository1.0-dev libcairo2-dev libcairo2 zlib1g-dev libfreetype6-dev liblcms2-dev libopenjp2-7 libtiff6 libdbus-1-dev libdbus-1-3
 
 echo " "
 
@@ -42,7 +42,9 @@ echo "install needed python3 modules for the project        "
 echo "----------------------------------------------"
 echo " "
 
-sudo pip3 install -r requirements.txt
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 
 echo " "
 echo "-------------------------------------------------------"
@@ -77,8 +79,8 @@ echo " add user to the group bluetoot and dialout   "
 echo "----------------------------------------------"
 
 
-sudo usermod -a -G bluetooth pi
-sudo usermod -a -G dialout pi
+sudo usermod -a -G bluetooth ${USER}
+sudo usermod -a -G dialout ${USER}
 
 echo " "
 echo "-----------------------------------------------"
