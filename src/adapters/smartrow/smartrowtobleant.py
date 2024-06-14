@@ -10,7 +10,7 @@ from copy import deepcopy
 from . import smartrowreader
 
 logger = logging.getLogger(__name__)
-
+sr_passthrough_q = None
 
 class DataLogger():
 
@@ -67,7 +67,7 @@ class DataLogger():
 
 
     def elapsedtime(self):
-        print(self.fullstop)
+        #print(self.fullstop)
         if self.fullstop == False:
             elaspedtimecalc = int(time.time() - self.starttime)
             self.WRValues.update({'elapsedtime':elaspedtimecalc})
@@ -81,6 +81,7 @@ class DataLogger():
 
     # Response for SmartRow V3
     def calculate_challenge_response(self, keylock):
+        logger.info("Received SmartRow challenge request!")
         try:
             key=keylock[1:15]
             checksum=keylock[15:17]
@@ -108,7 +109,7 @@ class DataLogger():
         return [0x23]
 
     def send_challenge_response(self, key):
-        print("--> Sending challenge response")
+        logger.info("Sending SmartRow challenge response!")
 
         for b in key:
             self._rower_interface.characteristic_write_value(struct.pack("<b",b))
@@ -130,6 +131,11 @@ class DataLogger():
             return event
 
     def on_row_event(self, event):
+        global sr_passthrough_q
+
+        #pretty=event.replace('\r', '')
+        #print('-->' + str(pretty))
+        
         if 'V3.00' in event:
             self.SmartRowV3 = True
             self._rower_interface.characteristic_write_value(struct.pack("<b", 0x23))
@@ -147,6 +153,9 @@ class DataLogger():
         if self.SmartRowV3 is True:
             event = self.parse_v3_decrypt(event)
 
+        if (sr_passthrough_q is not None):
+            sr_passthrough_q.append(event)
+
         try:
             if event[0] == self.ENERGIE_KCAL_MESSAGE:
                 event = event.replace(" ", "0")
@@ -156,7 +165,6 @@ class DataLogger():
 
             elif event[0] == self.WORK_STROKE_LENGTH_MESSAGE:
                 event = event.replace(" ", "0")
-                #print(event)
                 self.WRValues.update({'total_distance_m': int((event[1:6]))})
                 self.WRValues.update({'work': float(event[7:11])/10})
                 self.WRValues.update({'stroke_length': int((event[11:14]))})
@@ -227,7 +235,7 @@ class DataLogger():
             print(e)
             print(event)
 
-        print(self.WRValues)
+        #print(self.WRValues)
 
 
 def connectSR(manager,smartrow):
@@ -249,11 +257,20 @@ def heartbeat(sr):
         sleep(1)
 
 
-def main(in_q, ble_out_q,ant_out_q):
+def main(in_q, ble_out_q, ant_out_q, passtrhu_q = None, fake_sr_event = None):
     # this starts discovery, calls manager.run() and returns manager.smartrowmac
     # 
-    macaddresssmartrower = smartrowreader.connecttosmartrow()
-    manager = gatt.DeviceManager(adapter_name='hci0')
+    global sr_passthrough_q
+    sr_passthrough_q = passtrhu_q
+
+    macaddresssmartrower = smartrowreader.connecttosmartrow(fake_sr_event is not None)
+
+    # If we use the fake smartrow passthrough, then make sure we get the correct Bluetooth device
+    if fake_sr_event is None:
+        manager = gatt.DeviceManager(adapter_name='hci0')
+    else:
+        manager = gatt.DeviceManager(adapter_name=smartrowreader.get_sr_preferred_adapter())
+
     smartrow = smartrowreader.SmartRow(mac_address=macaddresssmartrower, manager=manager)
     SRtoBLEANT = DataLogger(smartrow)
 
@@ -261,9 +278,10 @@ def main(in_q, ble_out_q,ant_out_q):
     BC.daemon = True
     BC.start()
 
-    logger.info("SmartRow Ready and sending data to BLE and ANT Thread")
     while not smartrow.ready() :
       sleep(0.2)
+
+    logger.info("SmartRow Ready and sending data to BLE and ANT Thread")
 
     print("starting heart beat")
     HB = threading.Thread(target=heartbeat, args=([smartrow]))
@@ -275,6 +293,10 @@ def main(in_q, ble_out_q,ant_out_q):
     sleep(1)
     SRtoBLEANT.Initial_reset = True # this should help to check if the first reset has been performed
 
+    # If passthrough is enabled, let the passthrough thread continue
+    if (fake_sr_event != None):
+        fake_sr_event.set()
+
     while True:
         if not in_q.empty():
             ResetRequest_ble = in_q.get()
@@ -284,6 +306,7 @@ def main(in_q, ble_out_q,ant_out_q):
             pass
         ble_out_q.append(SRtoBLEANT.WRValues)
         ant_out_q.append(SRtoBLEANT.WRValues)
+
         sleep(0.1)
 
 if __name__ == '__main__':
